@@ -1,46 +1,71 @@
 <script lang="ts" setup>
-import { reactive, ref } from 'vue';
+/** 定义变量 */
+import { ref, reactive } from 'vue';
+/** 路由跳转 */
 import { useRouter } from 'vue-router';
-import { useUserStore } from '@/store/modules/user';
-import { User, Lock, Key, Picture, Loading } from '@element-plus/icons-vue';
-import ThemeSwitch from '@/components/ThemeSwitch/index.vue';
+/** 图标 */
+import { User, Lock, Key, Picture, Loading, MagicStick } from '@element-plus/icons-vue';
+/** 表单以及校验 */
 import { type FormInstance, FormRules } from 'element-plus';
+/** 登录相关 */
+import { useUserStore } from '@/store/modules/user';
+import { ILoginRequestData } from '@/api/login/types/login';
 import { getLoginCodeApi } from '@/api/login';
-import { type ILoginRequestData } from '@/api/login/types/login';
-
+/** 主题相关 */
+import { type ThemeName, useTheme } from '@/hooks/useTheme';
+const { themeList, activeThemeName, setTheme } = useTheme();
+/** 实例化路由 */
 const router = useRouter();
-const loginFormRef = ref<FormInstance | null>(null);
 
 /** 登录按钮 Loading */
 const loading = ref(false);
+
 /** 验证码图片 URL */
 const codeUrl = ref('');
-/** 登录表单数据 */
+
+/** 表单校验实例 */
+const loginFormRef = ref<FormInstance | null>(null);
+
+/** 登录表单 */
 const loginForm: ILoginRequestData = reactive({
   username: 'admin',
-  password: '12345678',
+  password: '123456',
   code: '',
 });
+
 /** 登录表单校验规则 */
-const loginFormRules: FormRules = {
+const loginFormRules = reactive<FormRules>({
   username: [{ required: true, message: '请输入用户名', trigger: 'blur' }],
   password: [
-    { required: true, message: '请输入密码', trigger: 'blur' },
-    { min: 8, max: 16, message: '长度在 8 到 16 个字符', trigger: 'blur' },
+    {
+      required: true,
+      message: '请输入密码',
+      trigger: 'blur',
+    },
+    {
+      min: 8,
+      max: 16,
+      message: '长度在 8 到 16 个字符之间',
+      trigger: 'blur',
+    },
   ],
-  code: [{ required: true, message: '请输入验证码', trigger: 'blur' }],
-};
-/** 登录逻辑 */
+  code: [
+    {
+      required: true,
+      message: '请输入验证码',
+      trigger: 'blur',
+    },
+  ],
+});
+
+/** 登录 */
 const handleLogin = () => {
-  loginFormRef.value?.validate((valid: boolean) => {
+  loginFormRef.value?.validate((valid: Boolean) => {
     if (valid) {
       loading.value = true;
+      /** 登录接口以及登录跳转 */
       useUserStore()
-        .login({
-          username: loginForm.username,
-          password: loginForm.password,
-          code: loginForm.code,
-        })
+        .login(loginForm)
         .then(() => {
           router.push({ path: '/' });
         })
@@ -56,27 +81,55 @@ const handleLogin = () => {
     }
   });
 };
+
 /** 创建验证码 */
 const createCode = () => {
-  // 先清空验证码的输入
+  // 先清空验证码
   loginForm.code = '';
   // 获取验证码
   codeUrl.value = '';
+  // 实际请求接口地址: https://mock.mengxuegu.com/mock/63218b5fb4c53348ed2bc212/api/v1/login/code
   getLoginCodeApi().then(res => {
-    codeUrl.value = res.data;
+    if (res.code === 0) {
+      codeUrl.value = res.data;
+    }
   });
 };
 
 /** 初始化验证码 */
 createCode();
+
+const handleSelectTheme = () => {};
 </script>
 
 <template>
   <div class="login-container">
-    <ThemeSwitch class="theme-switch" />
+    <div class="theme-switch">
+      <el-dropdown trigger="click" @command="handleSelectTheme">
+        <div>
+          <el-tooltip effect="dark" content="主题模式" placement="bottom">
+            <el-icon :size="20">
+              <MagicStick />
+            </el-icon>
+          </el-tooltip>
+        </div>
+        <template #dropdown>
+          <el-dropdown-menu>
+            <el-dropdown-item
+              v-for="(item, index) in themeList"
+              :key="item"
+              :disabled="activeThemeName === item.name"
+              :command="item.name"
+            >
+              <span>{{ item.title }}</span>
+            </el-dropdown-item>
+          </el-dropdown-menu>
+        </template>
+      </el-dropdown>
+    </div>
     <div class="login-card">
       <div class="title">
-        <img src="@/assets/layout/logo-text-2.png" />
+        <img src="@/assets/layout/logo-text-2.png" alt="" class="" />
       </div>
       <div class="content">
         <el-form ref="loginFormRef" :model="loginForm" :rules="loginFormRules" @keyup.enter="handleLogin">
@@ -107,9 +160,8 @@ createCode();
               placeholder="验证码"
               type="text"
               tabindex="3"
-              :prefix-icon="Key"
-              maxlength="7"
               size="large"
+              :prefix-icon="Key"
             >
               <template #append>
                 <el-image :src="codeUrl" @click="createCode" draggable="false">
@@ -130,54 +182,46 @@ createCode();
   </div>
 </template>
 
-<style lang="scss" scoped>
+<style scoped lang="scss">
 .login-container {
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	min-height: 100%;
-	width: 100%;
-	.theme-switch {
-		position: fixed;
-		top: 5%;
-		right: 5%;
-		cursor: pointer;
-	}
-	.login-card {
-		overflow: hidden;
-		width: 480px;
-		border-radius: 20px;
-		background-color: #fff;
-		box-shadow: 0 0 10px #dcdfe6;
-		.title {
-			display: flex;
-			align-items: center;
-			justify-content: center;
-			height: 150px;
-			img {
-				height: 100%;
-			}
-		}
-		.content {
-			padding: 20px 50px 50px 50px;
-			:deep(.el-input-group__append) {
-				overflow: hidden;
-				padding: 0;
-				.el-image {
-					width: 100px;
-					height: 40px;
-					border-left: 0;
-					text-align: center;
-					cursor: pointer;
-
-					user-select: none;
-				}
-			}
-			.el-button {
-				margin-top: 10px;
-				width: 100%;
-			}
-		}
-	}
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100%;
+  width: 100%;
+  min-width: 490px;
+  .theme-switch {
+    position: fixed;
+    top: 5%;
+    right: 5%;
+    cursor: pointer;
+  }
+  .login-card {
+    overflow: hidden;
+    width: 480px;
+    border-radius: 20px;
+    background-color: #fff;
+    box-shadow: 0 0 10px #dcdfe6;
+    .title {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      height: 150px;
+      img {
+        height: 100%;
+      }
+    }
+    .content {
+      padding: 20px 50px 50px;
+      :deep(.el-input-group__append) {
+        padding: 0;
+        overflow: hidden;
+      }
+      :deep(.el-button) {
+        width: 100%;
+        margin-top: 10px;
+      }
+    }
+  }
 }
 </style>
